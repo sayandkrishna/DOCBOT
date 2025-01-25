@@ -14,7 +14,7 @@ FAISS_FILE_ID = "1-4j5h6EIFN4cuvNAW-SU2GHo9MyizZ54"  # Replace with your actual 
 PKL_FILE_ID = "1-C5OiSvSp_KoOBxGmfCHpxkg3asjWVc0"  # Replace with your actual file ID
 
 # Path to store files after download
-DB_FAISS_PATH = "/workspaces/DOCBOT/vectorstore/db_faiss"
+DB_FAISS_PATH = "vectorstore/db_faiss"
 
 # Download files from Google Drive
 def download_from_drive(file_id, destination_path):

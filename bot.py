@@ -60,11 +60,58 @@ def load_llm(huggingface_repo_id, HF_TOKEN):
     return llm
 
 def main():
-    st.title("Ask Chatbot with Memory!")
+    # Set page configuration
+    st.set_page_config(
+        page_title="Smart Chat Assistant",
+        page_icon="🤖",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # Custom CSS for styling
+    st.markdown("""
+    <style>
+    .main {
+        background-color: #f0f2f6;
+    }
+    .stChatMessage {
+        margin-bottom: 15px;
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .stChatMessage.user {
+        background-color: #e6f2ff;
+    }
+    .stChatMessage.assistant {
+        background-color: #f0f0f0;
+    }
+    .stTextInput > div > div > input {
+        border-radius: 10px;
+        border: 2px solid #4a90e2;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Title and Welcome Section
+    st.title("🤖 DOCPLUS ASSIST")
+    st.markdown("### Ask anything about medical topics, diseases, treatments, or health - related doubts, and get reliable insights.")
+
+    # Sidebar for additional information
+    with st.sidebar:
+        st.header("About")
+        st.warning("""
+        **Important Notice:**  
+        This Health Care Assist Bot is trained on Harrison's Principles of Internal Medicine .  
+        While it provides helpful information, it is not a substitute for professional medical advice, diagnosis, or treatment.  
+        Always consult a qualified healthcare provider for medical concerns.
+        """)
 
     # Initialize session state for messages and memory
     if 'messages' not in st.session_state:
         st.session_state.messages = []
+        # Add welcome message
+        welcome_msg = "Hello! Welcome to Docplus Assist. How can I help you today?."
+        st.session_state.messages.append({'role': 'assistant', 'content': welcome_msg})
 
     if 'memory' not in st.session_state:
         st.session_state.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
@@ -73,43 +120,45 @@ def main():
     for message in st.session_state.messages:
         st.chat_message(message['role']).markdown(message['content'])
 
-    # Input for the user's prompt
-    prompt = st.chat_input("Pass your prompt here")
+    # Custom prompt template
+    CUSTOM_PROMPT_TEMPLATE = """
+    Use the pieces of information provided in the context to answer the user's question. 
+    When the answer involves multiple aspects (e.g., causes, symptoms, steps, or benefits), 
+    format it as a list of points for better understanding. 
+    If you don't know the answer, just say that you don't know, and don't try to make up an answer. 
+    Do not provide anything outside of the given context. 
 
-    if prompt:
-        st.chat_message('user').markdown(prompt)
-        st.session_state.messages.append({'role': 'user', 'content': prompt})
+    Context: {context} 
+    Question: {question} 
+    Provide the answer clearly and concisely: 
+    1. Use bullet points or numbers for answers with multiple aspects. 
+    2. For short answers, respond directly in a sentence.
+    """
 
-        # Custom prompt template
-        CUSTOM_PROMPT_TEMPLATE = """
-        Use the pieces of information provided in the context to answer the user's question.
-        When the answer involves multiple aspects (e.g., causes, symptoms, steps, or benefits), format it as a list of points for better understanding.
-        If you don't know the answer, just say that you don't know, and don't try to make up an answer.
-        Do not provide anything outside of the given context.
+    # HuggingFace model details
+    HUGGINGFACE_REPO_ID = "mistralai/Mistral-7B-Instruct-v0.3"
+    HF_TOKEN = os.environ.get("HF_TOKEN")
 
-        Context: {context}
-        Question: {question}
+    try:
+        vectorstore = get_vectorstore()
+        if vectorstore is None:
+            st.error("Failed to load the vector store")
+            return
 
-        Provide the answer clearly and concisely:
-        1. Use bullet points or numbers for answers with multiple aspects.
-        2. For short answers, respond directly in a sentence.
-        """
+        # Create Conversational Retrieval Chain
+        qa_chain = ConversationalRetrievalChain.from_llm(
+            llm=load_llm(huggingface_repo_id=HUGGINGFACE_REPO_ID, HF_TOKEN=HF_TOKEN),
+            retriever=vectorstore.as_retriever(search_kwargs={'k': 3}),
+            memory=st.session_state.memory
+        )
 
-        # HuggingFace model details
-        HUGGINGFACE_REPO_ID = "mistralai/Mistral-7B-Instruct-v0.3"
-        HF_TOKEN = os.environ.get("HF_TOKEN")
+        # Input for the user's prompt
+        prompt = st.chat_input("Ask me anything...")
 
-        try:
-            vectorstore = get_vectorstore()
-            if vectorstore is None:
-                st.error("Failed to load the vector store")
-
-            # Create Conversational Retrieval Chain
-            qa_chain = ConversationalRetrievalChain.from_llm(
-                llm=load_llm(huggingface_repo_id=HUGGINGFACE_REPO_ID, HF_TOKEN=HF_TOKEN),
-                retriever=vectorstore.as_retriever(search_kwargs={'k': 3}),
-                memory=st.session_state.memory
-            )
+        if prompt:
+            # Display user message
+            st.chat_message('user').markdown(prompt)
+            st.session_state.messages.append({'role': 'user', 'content': prompt})
 
             # Invoke the chain with the user prompt
             response = qa_chain.invoke({'question': prompt})
@@ -121,8 +170,9 @@ def main():
             st.chat_message('assistant').markdown(result)
             st.session_state.messages.append({'role': 'assistant', 'content': result})
 
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

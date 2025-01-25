@@ -1,6 +1,7 @@
 import os
+import pickle
+import gdown
 import streamlit as st
-
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import ConversationalRetrievalChain
 from langchain_community.vectorstores import FAISS
@@ -8,11 +9,40 @@ from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain.memory import ConversationBufferMemory
 
-# DB Path
-DB_FAISS_PATH = "vectorstore\db_faiss"
+# Google Drive file IDs for FAISS files
+FAISS_FILE_ID = "1-4j5h6EIFN4cuvNAW-SU2GHo9MyizZ54"  # Replace with your actual file ID
+PKL_FILE_ID = "1-C5OiSvSp_KoOBxGmfCHpxkg3asjWVc0"  # Replace with your actual file ID
+
+# Path to store files after download
+DB_FAISS_PATH = "/workspaces/DOCBOT/vectorstore/db_faiss"
+
+# Download files from Google Drive
+def download_from_drive(file_id, destination_path):
+    try:
+        print(f"Downloading file with ID: {file_id}")
+        gdown.download(f'https://drive.google.com/uc?export=download&id={file_id}', destination_path, quiet=False)
+        print(f"File downloaded to {destination_path}")
+    except Exception as e:
+        print(f"Failed to download file: {e}")
 
 @st.cache_resource
 def get_vectorstore():
+    # Ensure FAISS files are downloaded
+    if not os.path.exists(DB_FAISS_PATH):
+        os.makedirs(DB_FAISS_PATH)
+
+    # Download the FAISS index and pickle files
+    print("Downloading FAISS files...")
+    download_from_drive(FAISS_FILE_ID, os.path.join(DB_FAISS_PATH, "index.faiss"))
+    download_from_drive(PKL_FILE_ID, os.path.join(DB_FAISS_PATH, "index.pkl"))
+
+    # Check if files exist
+    if os.path.exists(os.path.join(DB_FAISS_PATH, "index.faiss")) and os.path.exists(os.path.join(DB_FAISS_PATH, "index.pkl")):
+        print("FAISS files are ready for loading.")
+    else:
+        print("FAISS files are missing!")
+
+    # Load FAISS index
     embedding_model = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
     db = FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True)
     return db
@@ -63,7 +93,6 @@ def main():
         Provide the answer clearly and concisely:
         1. Use bullet points or numbers for answers with multiple aspects.
         2. For short answers, respond directly in a sentence.
-
         """
 
         # HuggingFace model details
